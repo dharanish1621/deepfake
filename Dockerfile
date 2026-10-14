@@ -1,16 +1,6 @@
-# Stage 1: Build Vite frontend
-FROM node:20-alpine AS frontend-builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY frontend/ ./frontend/
-COPY vite.config.js ./
-RUN npx vite build
-
-# Stage 2: Python runtime with PyTorch and VideoMAE
 FROM python:3.11-slim
 
-# Create non-root user (required by Hugging Face Spaces)
+# Create non-root user (required by Hugging Face Spaces & security best practices)
 RUN useradd -m -u 1000 user
 ENV HOME=/home/user \
     PATH=/home/user/.local/bin:$PATH \
@@ -34,17 +24,20 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt && \
     pip install --no-cache-dir opencv-python-headless
 
-# Application source and compiled frontend
+# Pre-create all application directories
+RUN mkdir -p /app/frontend /app/dist /app/models
+
+# Application source and static frontend
 COPY server.py app.py ./
 COPY models/ ./models/
 COPY frontend/ ./frontend/
-COPY --from=frontend-builder /app/dist ./dist
 
 # Ensure permissions
 RUN chown -R user:user /app /home/user
 USER user
 
-# Hugging Face default port
+# Port
 EXPOSE 7860
 
 CMD ["sh", "-c", "uvicorn server:app --host 0.0.0.0 --port ${PORT:-7860} --workers 1"]
+

@@ -296,9 +296,12 @@ async def analyze_video(file: UploadFile = File(...)):
 FRONTEND_DIR = Path(__file__).resolve().parent / "frontend"
 DIST_DIR = Path(__file__).resolve().parent / "dist"
 
-# Ensure directories exist so StaticFiles never throws runtime errors
-FRONTEND_DIR.mkdir(parents=True, exist_ok=True)
-DIST_DIR.mkdir(parents=True, exist_ok=True)
+# Ensure directories exist safely at runtime
+try:
+    FRONTEND_DIR.mkdir(parents=True, exist_ok=True)
+    DIST_DIR.mkdir(parents=True, exist_ok=True)
+except Exception:
+    pass
 
 
 @app.middleware("http")
@@ -311,36 +314,49 @@ async def add_cache_control_header(request, call_next):
     return response
 
 
+@app.get("/", tags=["General"])
+async def root():
+    """Root endpoint: serves index.html if available, or API health status."""
+    for candidate in [DIST_DIR / "index.html", FRONTEND_DIR / "index.html"]:
+        if candidate.is_file():
+            return FileResponse(str(candidate), headers={"Cache-Control": "no-cache"})
+    return {
+        "status": "online",
+        "service": "Deepfake Video Analysis API",
+        "version": "1.0.0",
+        "health": "/health",
+        "docs": "/docs",
+        "model_ready": model is not None and processor is not None
+    }
+
+
 def mount_static_and_root(target_app=app):
-    """Mount frontend static files and root fallback, placing them at the end of routes."""
+    """Mount frontend static files safely without crashing if directories are missing."""
     target_app.router.routes = [
         r for r in target_app.router.routes
         if getattr(r, "name", None) not in ("root_frontend", "static", "assets")
     ]
-    if FRONTEND_DIR.exists():
-        target_app.mount(
-            "/static",
-            StaticFiles(directory=str(FRONTEND_DIR)),
-            name="static",
-        )
-    if DIST_DIR.exists() and (DIST_DIR / "assets").exists():
-        target_app.mount(
-            "/assets",
-            StaticFiles(directory=str(DIST_DIR / "assets")),
-            name="assets",
-        )
-    if DIST_DIR.exists():
-        target_app.mount(
-            "/",
-            StaticFiles(directory=str(DIST_DIR), html=True),
-            name="root_frontend",
-        )
-    elif FRONTEND_DIR.exists():
-        target_app.mount(
-            "/",
-            StaticFiles(directory=str(FRONTEND_DIR), html=True),
-            name="root_frontend",
-        )
+    try:
+        if FRONTEND_DIR.is_dir() and any(FRONTEND_DIR.iterdir()):
+            target_app.mount(
+                "/static",
+                StaticFiles(directory=str(FRONTEND_DIR)),
+                name="static",
+            )
+    except Exception as exc:
+        pass
+
+    try:
+        assets_dir = DIST_DIR / "assets"
+        if assets_dir.is_dir():
+            target_app.mount(
+                "/assets",
+                StaticFiles(directory=str(assets_dir)),
+                name="assets",
+            )
+    except Exception as exc:
+        pass
+
     return target_app
 
 
