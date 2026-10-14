@@ -191,6 +191,7 @@ def frames_to_base64(frames: list[Image.Image]) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
+@app.get("/health")
 @app.get("/api/health")
 async def health_check():
     """Server health and device info."""
@@ -365,8 +366,8 @@ mount_static_and_root(app)
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.environ.get("PORT", 8000))
-    host = os.environ.get("HOST", "127.0.0.1")
-    uvicorn.run("server:app", host=host, port=port, reload=True)
+    port = int(os.environ.get("PORT", 8080))
+    host = os.environ.get("HOST", "0.0.0.0")
+    uvicorn.run("server:app", host=host, port=port, reload=False)
 
 

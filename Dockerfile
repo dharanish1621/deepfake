@@ -5,8 +5,7 @@ RUN useradd -m -u 1000 user
 ENV HOME=/home/user \
     PATH=/home/user/.local/bin:$PATH \
     PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PORT=7860
+    PYTHONDONTWRITEBYTECODE=1
 
 WORKDIR /app
 
@@ -36,8 +35,8 @@ COPY frontend/ ./frontend/
 RUN chown -R user:user /app /home/user
 USER user
 
-# Port
-EXPOSE 7860
+# Support Railway dynamic PORT or default to 8080
+EXPOSE 8080 7860 8000
 
-CMD ["sh", "-c", "uvicorn server:app --host 0.0.0.0 --port ${PORT:-7860} --workers 1"]
+CMD ["sh", "-c", "exec uvicorn server:app --host 0.0.0.0 --port ${PORT:-8080} --workers 1"]
 
