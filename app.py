@@ -118,7 +118,8 @@ demo.app.add_api_route("/api/health", health_check, methods=["GET"])
 demo.app.add_api_route("/api/analyze", analyze_video, methods=["POST"])
 
 # Mount static asset routes
-demo.app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="custom_static")
+if FRONTEND_DIR.exists():
+    demo.app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="custom_static")
 
 async def serve_index(request):
     return FileResponse(str(FRONTEND_DIR / "index.html"), headers={"Cache-Control": "no-cache"})

@@ -35,8 +35,9 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir opencv-python-headless
 
 # Application source and compiled frontend
-COPY server.py ./
+COPY server.py app.py ./
 COPY models/ ./models/
+COPY frontend/ ./frontend/
 COPY --from=frontend-builder /app/dist ./dist
 
 # Ensure permissions

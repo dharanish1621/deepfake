@@ -313,22 +313,30 @@ def mount_static_and_root(target_app=app):
         r for r in target_app.router.routes
         if getattr(r, "name", None) not in ("root_frontend", "static", "assets")
     ]
-    target_app.mount(
-        "/static",
-        StaticFiles(directory=str(FRONTEND_DIR)),
-        name="static",
-    )
+    if FRONTEND_DIR.exists():
+        target_app.mount(
+            "/static",
+            StaticFiles(directory=str(FRONTEND_DIR)),
+            name="static",
+        )
     if DIST_DIR.exists() and (DIST_DIR / "assets").exists():
         target_app.mount(
             "/assets",
             StaticFiles(directory=str(DIST_DIR / "assets")),
             name="assets",
         )
-    target_app.mount(
-        "/",
-        StaticFiles(directory=str(FRONTEND_DIR), html=True),
-        name="root_frontend",
-    )
+    if DIST_DIR.exists():
+        target_app.mount(
+            "/",
+            StaticFiles(directory=str(DIST_DIR), html=True),
+            name="root_frontend",
+        )
+    elif FRONTEND_DIR.exists():
+        target_app.mount(
+            "/",
+            StaticFiles(directory=str(FRONTEND_DIR), html=True),
+            name="root_frontend",
+        )
     return target_app
 
 
