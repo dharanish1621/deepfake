@@ -234,26 +234,31 @@ function initApp() {
   }
 
   async function checkHealth() {
+    const candidateHealthUrls = ['/api/health'];
     const backendBase = getApiBaseUrl();
+    if (backendBase && !candidateHealthUrls.includes(`${backendBase}/api/health`)) {
+      candidateHealthUrls.push(`${backendBase}/api/health`);
+    }
 
-    // 1. Check primary FastAPI backend (Railway / local / Vercel proxy)
-    try {
-      const apiUrl = `${backendBase}/api/health`;
-      const res = await fetch(apiUrl);
-      if (res.ok) {
-        const data = await res.json();
-        const dev = (data.device || 'CPU').toUpperCase();
+    // 1. Check FastAPI backend via Vercel proxy rewrite or direct Railway URL
+    for (const url of candidateHealthUrls) {
+      try {
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          const dev = (data.device || 'CPU').toUpperCase();
 
-        if (engineDot) engineDot.className = 'status-indicator-dot online';
-        if (engineStatusText) engineStatusText.textContent = 'AI Engine Online';
-        if (deviceText) deviceText.textContent = dev === 'CUDA' ? 'CUDA (GPU)' : 'CPU Multi-Core';
-        if (badgeDevice) {
-          if (dev === 'CUDA') badgeDevice.classList.add('cuda-active');
-          else badgeDevice.classList.remove('cuda-active');
+          if (engineDot) engineDot.className = 'status-indicator-dot online';
+          if (engineStatusText) engineStatusText.textContent = 'AI Engine Online';
+          if (deviceText) deviceText.textContent = dev === 'CUDA' ? 'CUDA (GPU)' : 'CPU Multi-Core';
+          if (badgeDevice) {
+            if (dev === 'CUDA') badgeDevice.classList.add('cuda-active');
+            else badgeDevice.classList.remove('cuda-active');
+          }
+          return;
         }
-        return;
-      }
-    } catch (_) {}
+      } catch (_) {}
+    }
 
     // 2. Check Hugging Face ZeroGPU Space status (fallback)
     try {
@@ -441,10 +446,14 @@ function initApp() {
       const isLocal = ['localhost', '127.0.0.1', '0.0.0.0'].includes(window.location.hostname);
       const backendBase = getApiBaseUrl();
 
-      // 1. Try FastAPI backend (Render, local server, or custom URL)
-      if (backendBase || isLocal) {
+      // 1. Try FastAPI backend via Vercel rewrite or direct Railway URL
+      const candidateUrls = ['/api/analyze'];
+      if (backendBase && !candidateUrls.includes(`${backendBase}/api/analyze`)) {
+        candidateUrls.push(`${backendBase}/api/analyze`);
+      }
+
+      for (const apiUrl of candidateUrls) {
         try {
-          const apiUrl = `${backendBase}/api/analyze`;
           const formData = new FormData();
           formData.append('file', selectedFile);
 
@@ -455,9 +464,12 @@ function initApp() {
 
           if (response.ok) {
             data = await response.json();
+            break;
+          } else {
+            console.warn(`API call to ${apiUrl} returned status: ${response.status}`);
           }
         } catch (backendErr) {
-          console.warn('Backend API unreachable, falling back to Hugging Face ZeroGPU Space...', backendErr);
+          console.warn(`Backend call to ${apiUrl} unreachable:`, backendErr);
         }
       }
 

@@ -254,6 +254,31 @@ def run_inference(processor, model, device, frames):
     return probabilities
 
 
+def _process_video_pipeline(temp_path: str):
+    """Run CPU-intensive video decoding and VideoMAE inference in a separate thread."""
+    processor, model, device = get_model()
+    frames = extract_frames(temp_path)
+    probabilities = run_inference(processor, model, device, frames)
+
+    results = []
+    for index, score in enumerate(probabilities.tolist()):
+        label = model.config.id2label.get(index, f"Class {index}")
+        results.append({
+            "label": str(label),
+            "score": round(float(score), 4),
+        })
+
+    results.sort(key=lambda item: item["score"], reverse=True)
+    frame_images = frames_to_base64(frames)
+
+    return {
+        "results": results,
+        "frames": frame_images,
+        "device": str(device),
+        "frames_sampled": len(frames),
+    }
+
+
 @app.post("/api/analyze")
 async def analyze_video(file: UploadFile = File(...)):
     """Upload a video and get deepfake classification results."""
@@ -276,36 +301,9 @@ async def analyze_video(file: UploadFile = File(...)):
             while chunk := await file.read(1024 * 1024):
                 tmp.write(chunk)
 
-        # Load model and run inference
-        processor, model, device = get_model()
-        frames = extract_frames(temp_path)
-        probabilities = run_inference(processor, model, device, frames)
-
-        # Build results
-        results = []
-        for index, score in enumerate(probabilities.tolist()):
-            label = model.config.id2label.get(
-                index, f"Class {index}"
-            )
-            results.append({
-                "label": str(label),
-                "score": round(float(score), 4),
-            })
-
-        results.sort(
-            key=lambda item: item["score"],
-            reverse=True,
-        )
-
-        # Encode sampled frames as base64 for the frontend
-        frame_images = frames_to_base64(frames)
-
-        return {
-            "results": results,
-            "frames": frame_images,
-            "device": str(device),
-            "frames_sampled": len(frames),
-        }
+        # Offload video frame extraction & model inference to a worker thread so the main asyncio event loop never blocks
+        import asyncio
+        return await asyncio.to_thread(_process_video_pipeline, temp_path)
 
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
@@ -343,8 +341,24 @@ except Exception:
 
 
 @app.middleware("http")
-async def add_cache_control_header(request, call_next):
+async def add_cors_and_cache_headers(request, call_next):
+    origin = request.headers.get("origin")
+    if request.method == "OPTIONS":
+        from fastapi.responses import Response
+        res = Response(status_code=200)
+        res.headers["Access-Control-Allow-Origin"] = origin or "*"
+        res.headers["Access-Control-Allow-Credentials"] = "true"
+        res.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH"
+        res.headers["Access-Control-Allow-Headers"] = "*"
+        return res
+
     response = await call_next(request)
+    if origin:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+
     if request.url.path.startswith("/static") or request.url.path == "/" or request.url.path.endswith((".js", ".css", ".html")):
         response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
         response.headers["Pragma"] = "no-cache"
