@@ -211,27 +211,33 @@ function initApp() {
 
   function getApiBaseUrl() {
     if (window.API_BASE_URL) return window.API_BASE_URL.replace(/\/+$/, '');
-    const isLocal = ['localhost', '127.0.0.1', '0.0.0.0'].includes(window.location.hostname);
-    if (isLocal) return '';
+    try {
+      if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE_URL) {
+        return import.meta.env.VITE_API_BASE_URL.replace(/\/+$/, '');
+      }
+    } catch (_) {}
     const stored = localStorage.getItem('deepfake_backend_url');
     if (stored) return stored.replace(/\/+$/, '');
+    const isLocal = ['localhost', '127.0.0.1', '0.0.0.0'].includes(window.location.hostname);
+    if (isLocal) return '';
     return '';
   }
 
   async function checkHealth() {
     const isLocal = ['localhost', '127.0.0.1', '0.0.0.0'].includes(window.location.hostname);
+    const backendBase = getApiBaseUrl();
 
-    // 1. Check local backend if on localhost
-    if (isLocal) {
+    // 1. Check Render / custom / local backend if configured or on localhost
+    if (backendBase || isLocal) {
       try {
-        const apiUrl = `${getApiBaseUrl()}/api/health`;
+        const apiUrl = `${backendBase}/api/health`;
         const res = await fetch(apiUrl);
         if (res.ok) {
           const data = await res.json();
           const dev = (data.device || 'CPU').toUpperCase();
 
           if (engineDot) engineDot.className = 'status-indicator-dot online';
-          if (engineStatusText) engineStatusText.textContent = 'Engine Ready';
+          if (engineStatusText) engineStatusText.textContent = backendBase ? 'Render API Online' : 'Engine Ready';
           if (deviceText) deviceText.textContent = dev === 'CUDA' ? 'CUDA (GPU)' : 'CPU Multi-Core';
           if (badgeDevice) {
             if (dev === 'CUDA') badgeDevice.classList.add('cuda-active');
@@ -428,12 +434,12 @@ function initApp() {
     try {
       let data = null;
       const isLocal = ['localhost', '127.0.0.1', '0.0.0.0'].includes(window.location.hostname);
-      const customBackendUrl = localStorage.getItem('deepfake_backend_url');
+      const backendBase = getApiBaseUrl();
 
-      // 1. Try local FastAPI server if running locally
-      if (isLocal && !customBackendUrl) {
+      // 1. Try FastAPI backend (Render, local server, or custom URL)
+      if (backendBase || isLocal) {
         try {
-          const apiUrl = `${getApiBaseUrl()}/api/analyze`;
+          const apiUrl = `${backendBase}/api/analyze`;
           const formData = new FormData();
           formData.append('file', selectedFile);
 
@@ -445,8 +451,8 @@ function initApp() {
           if (response.ok) {
             data = await response.json();
           }
-        } catch (localErr) {
-          console.warn('Local backend unreachable, falling back to Hugging Face ZeroGPU Space...', localErr);
+        } catch (backendErr) {
+          console.warn('Backend API unreachable, falling back to Hugging Face ZeroGPU Space...', backendErr);
         }
       }
 

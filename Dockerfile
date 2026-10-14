@@ -46,4 +46,4 @@ USER user
 # Hugging Face default port
 EXPOSE 7860
 
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "7860", "--workers", "1"]
+CMD ["sh", "-c", "uvicorn server:app --host 0.0.0.0 --port ${PORT:-7860} --workers 1"]
