@@ -296,6 +296,10 @@ async def analyze_video(file: UploadFile = File(...)):
 FRONTEND_DIR = Path(__file__).resolve().parent / "frontend"
 DIST_DIR = Path(__file__).resolve().parent / "dist"
 
+# Ensure directories exist so StaticFiles never throws runtime errors
+FRONTEND_DIR.mkdir(parents=True, exist_ok=True)
+DIST_DIR.mkdir(parents=True, exist_ok=True)
+
 
 @app.middleware("http")
 async def add_cache_control_header(request, call_next):
