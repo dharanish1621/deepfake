@@ -60,15 +60,24 @@ app.add_middleware(
 )
 
 
+def _background_warmup():
+    try:
+        print("[startup] Pre-warming VideoMAE model in background thread...")
+        get_model()
+        print("[startup] VideoMAE model pre-warmed successfully. Ready for inference!")
+    except Exception as exc:
+        print(f"[startup] Model pre-warm deferred: {exc}")
+
+
 @app.on_event("startup")
 async def startup_warmup():
-    """Pre-warm model and processor during startup so inference is instantaneous."""
+    """Pre-warm model and processor during startup asynchronously so container boots instantly."""
+    import asyncio
     try:
-        print("[startup] Pre-warming VideoMAE model...")
-        get_model()
-        print("[startup] VideoMAE model loaded into memory! Engine ready.")
+        print("[startup] Launching background model pre-warm...")
+        asyncio.create_task(asyncio.to_thread(_background_warmup))
     except Exception as exc:
-        print(f"[startup] Model warmup deferred: {exc}")
+        print(f"[startup] Model warmup launch deferred: {exc}")
 
 # ---------------------------------------------------------------------------
 # Model loading (singleton)
@@ -83,21 +92,22 @@ def ensure_model_weights():
     if not weights_path.exists():
         print("[setup] Model weights not found. Downloading fine-tuned VideoMAE (FaceForensics++)...")
         from huggingface_hub import hf_hub_download
-        import shutil
 
         Path(MODEL_ID).mkdir(parents=True, exist_ok=True)
-        downloaded = hf_hub_download(
+        hf_hub_download(
             repo_id="Vansh180/VideoMae-ffc23-deepfake-detector",
             filename="model.safetensors",
+            local_dir=str(MODEL_ID),
         )
-        shutil.copy(downloaded, str(weights_path))
         print("[setup] Trained model weights downloaded successfully.")
 
 
 def get_model():
-    """Load model, processor, and device once and cache them."""
+    """Load model, processor, and device once and cache them with minimal RAM footprint."""
     if not _model_cache:
         ensure_model_weights()
+        import gc
+        torch.set_num_threads(2)
         device = torch.device(
             "cuda" if torch.cuda.is_available() else "cpu"
         )
@@ -110,10 +120,12 @@ def get_model():
         model = VideoMAEForVideoClassification.from_pretrained(
             MODEL_ID,
             local_files_only=True,
+            low_cpu_mem_usage=True,
         )
 
         model = model.to(device)
         model.eval()
+        gc.collect()
 
         _model_cache["processor"] = processor
         _model_cache["model"] = model
@@ -236,6 +248,9 @@ def run_inference(processor, model, device, frames):
     with torch.inference_mode():
         outputs = model(**inputs)
         probabilities = torch.softmax(outputs.logits, dim=-1)[0]
+    del inputs, outputs
+    import gc
+    gc.collect()
     return probabilities
 
 
