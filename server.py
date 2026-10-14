@@ -327,8 +327,32 @@ async def root():
         "version": "1.0.0",
         "health": "/health",
         "docs": "/docs",
-        "model_ready": model is not None and processor is not None
+        "model_ready": bool(_model_cache),
     }
+
+
+@app.get("/style.css", include_in_schema=False)
+async def get_css():
+    file_path = FRONTEND_DIR / "style.css"
+    if file_path.is_file():
+        return FileResponse(str(file_path), media_type="text/css")
+    raise HTTPException(status_code=404)
+
+
+@app.get("/app.js", include_in_schema=False)
+async def get_js():
+    file_path = FRONTEND_DIR / "app.js"
+    if file_path.is_file():
+        return FileResponse(str(file_path), media_type="application/javascript")
+    raise HTTPException(status_code=404)
+
+
+@app.get("/ai-robot.png", include_in_schema=False)
+async def get_robot():
+    file_path = FRONTEND_DIR / "ai-robot.png"
+    if file_path.is_file():
+        return FileResponse(str(file_path), media_type="image/png")
+    raise HTTPException(status_code=404)
 
 
 def mount_static_and_root(target_app=app):
