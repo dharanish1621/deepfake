@@ -190,6 +190,7 @@ function initApp() {
 
   // ── 5. Backend Base URL, HF ZeroGPU Space Client & Health Check ──
   const HF_SPACE_ID = 'V1ShAl1613/deepfakevideoanalyser';
+  const DEFAULT_BACKEND_URL = 'https://deepfake-production-331b.up.railway.app';
   let gradioClientPromise = null;
 
   async function getGradioClient() {
@@ -218,37 +219,43 @@ function initApp() {
     } catch (_) {}
     const stored = localStorage.getItem('deepfake_backend_url');
     if (stored) return stored.replace(/\/+$/, '');
-    const isLocal = ['localhost', '127.0.0.1', '0.0.0.0'].includes(window.location.hostname);
-    if (isLocal) return '';
-    return '';
+
+    const hostname = window.location.hostname;
+    const isLocal = ['localhost', '127.0.0.1', '0.0.0.0'].includes(hostname);
+    const isSelfHostedBackend = hostname.includes('railway.app') || hostname.includes('onrender.com');
+
+    // If served directly from the backend server or running locally with Vite proxy, use relative path ''
+    if (isLocal || isSelfHostedBackend) {
+      return '';
+    }
+
+    // Otherwise (e.g. deployed on Vercel or external domain), connect to Railway by default
+    return DEFAULT_BACKEND_URL;
   }
 
   async function checkHealth() {
-    const isLocal = ['localhost', '127.0.0.1', '0.0.0.0'].includes(window.location.hostname);
     const backendBase = getApiBaseUrl();
 
-    // 1. Check Render / custom / local backend if configured or on localhost
-    if (backendBase || isLocal) {
-      try {
-        const apiUrl = `${backendBase}/api/health`;
-        const res = await fetch(apiUrl);
-        if (res.ok) {
-          const data = await res.json();
-          const dev = (data.device || 'CPU').toUpperCase();
+    // 1. Check primary FastAPI backend (Railway / local / Vercel proxy)
+    try {
+      const apiUrl = `${backendBase}/api/health`;
+      const res = await fetch(apiUrl);
+      if (res.ok) {
+        const data = await res.json();
+        const dev = (data.device || 'CPU').toUpperCase();
 
-          if (engineDot) engineDot.className = 'status-indicator-dot online';
-          if (engineStatusText) engineStatusText.textContent = backendBase ? 'Render API Online' : 'Engine Ready';
-          if (deviceText) deviceText.textContent = dev === 'CUDA' ? 'CUDA (GPU)' : 'CPU Multi-Core';
-          if (badgeDevice) {
-            if (dev === 'CUDA') badgeDevice.classList.add('cuda-active');
-            else badgeDevice.classList.remove('cuda-active');
-          }
-          return;
+        if (engineDot) engineDot.className = 'status-indicator-dot online';
+        if (engineStatusText) engineStatusText.textContent = 'AI Engine Online';
+        if (deviceText) deviceText.textContent = dev === 'CUDA' ? 'CUDA (GPU)' : 'CPU Multi-Core';
+        if (badgeDevice) {
+          if (dev === 'CUDA') badgeDevice.classList.add('cuda-active');
+          else badgeDevice.classList.remove('cuda-active');
         }
-      } catch (_) {}
-    }
+        return;
+      }
+    } catch (_) {}
 
-    // 2. Check Hugging Face ZeroGPU Space status (Vercel deployment or local fallback)
+    // 2. Check Hugging Face ZeroGPU Space status (fallback)
     try {
       const res = await fetch(`https://huggingface.co/api/spaces/${HF_SPACE_ID}`);
       if (res.ok) {
@@ -264,11 +271,9 @@ function initApp() {
       }
     } catch (_) {}
 
-    // 3. Fallback when offline
     if (engineDot) engineDot.className = 'status-indicator-dot offline';
     if (engineStatusText) engineStatusText.textContent = 'Engine Offline';
     if (deviceText) deviceText.textContent = 'Offline';
-    if (badgeDevice) badgeDevice.classList.remove('cuda-active');
   }
 
   checkHealth();
