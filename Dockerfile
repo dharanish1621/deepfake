@@ -24,12 +24,15 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir opencv-python-headless
 
 # Pre-create all application directories
-RUN mkdir -p /app/frontend /app/dist /app/models
+RUN mkdir -p /app/frontend /app/dist /app/models/videomae
 
 # Application source and static frontend
 COPY server.py app.py ./
 COPY models/ ./models/
 COPY frontend/ ./frontend/
+
+# Pre-download fine-tuned VideoMAE model weights into image layer
+RUN python -c "from huggingface_hub import hf_hub_download; import shutil; f = hf_hub_download('Vansh180/VideoMae-ffc23-deepfake-detector', 'model.safetensors'); shutil.copy(f, '/app/models/videomae/model.safetensors')"
 
 # Ensure permissions
 RUN chown -R user:user /app /home/user

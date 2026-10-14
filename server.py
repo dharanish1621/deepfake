@@ -59,6 +59,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.on_event("startup")
+async def startup_warmup():
+    """Pre-warm model and processor during startup so inference is instantaneous."""
+    try:
+        print("[startup] Pre-warming VideoMAE model...")
+        get_model()
+        print("[startup] VideoMAE model loaded into memory! Engine ready.")
+    except Exception as exc:
+        print(f"[startup] Model warmup deferred: {exc}")
+
 # ---------------------------------------------------------------------------
 # Model loading (singleton)
 # ---------------------------------------------------------------------------
@@ -121,7 +132,7 @@ def get_model():
 
 
 def extract_frames(video_path: str) -> list[Image.Image]:
-    """Extract NUM_FRAMES evenly spaced frames from a video file."""
+    """Extract NUM_FRAMES evenly spaced frames from a video file with smart downscaling."""
     cap = cv2.VideoCapture(video_path)
 
     try:
@@ -141,6 +152,11 @@ def extract_frames(video_path: str) -> list[Image.Image]:
                 cap.set(cv2.CAP_PROP_POS_FRAMES, int(index))
                 ok, frame = cap.read()
                 if ok:
+                    # Resize high-res (e.g. 4K/1080p) frames to max 384px to prevent memory spikes & accelerate inference
+                    h, w = frame.shape[:2]
+                    if max(h, w) > 384:
+                        scale = 384 / max(h, w)
+                        frame = cv2.resize(frame, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
                     frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     frames.append(Image.fromarray(frame))
 
@@ -154,6 +170,10 @@ def extract_frames(video_path: str) -> list[Image.Image]:
                 if not ok:
                     break
                 if frame_idx % step == 0:
+                    h, w = frame.shape[:2]
+                    if max(h, w) > 384:
+                        scale = 384 / max(h, w)
+                        frame = cv2.resize(frame, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
                     frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     frames.append(Image.fromarray(frame))
                     if len(frames) == NUM_FRAMES:
@@ -174,13 +194,15 @@ def extract_frames(video_path: str) -> list[Image.Image]:
 
 
 def frames_to_base64(frames: list[Image.Image]) -> list[str]:
-    """Convert PIL frames to base64-encoded JPEG strings."""
+    """Convert PIL frames to compact base64-encoded JPEG strings for fast network transfer."""
     encoded = []
     for frame in frames:
+        thumb = frame.copy()
+        thumb.thumbnail((256, 256))
         buf = io.BytesIO()
-        if frame.mode != "RGB":
-            frame = frame.convert("RGB")
-        frame.save(buf, format="JPEG", quality=80)
+        if thumb.mode != "RGB":
+            thumb = thumb.convert("RGB")
+        thumb.save(buf, format="JPEG", quality=75)
         b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
         encoded.append(f"data:image/jpeg;base64,{b64}")
     return encoded
