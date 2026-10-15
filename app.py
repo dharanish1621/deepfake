@@ -4,17 +4,25 @@ Serves the custom glassmorphic dark-mode web application at `/`
 with ZeroGPU hardware acceleration, powered by VideoMAE Spatio-Temporal Forensics.
 """
 
-try:
-    import spaces
-except ImportError:
+import os
+
+# Only initialize Hugging Face spaces if running inside genuine ZeroGPU Space
+IS_HF_SPACE = bool(os.environ.get("SPACE_ID"))
+if IS_HF_SPACE:
+    try:
+        import spaces
+    except ImportError:
+        IS_HF_SPACE = False
+
+if not IS_HF_SPACE:
     class spaces:
         @staticmethod
         def GPU(func=None, **kwargs):
             if func is None:
                 return lambda f: f
-            return func
-
-import os
+            if callable(func):
+                return func
+            return lambda f: f
 import sys
 from pathlib import Path
 import gradio as gr

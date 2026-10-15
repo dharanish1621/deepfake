@@ -3,17 +3,26 @@ Deepfake Video Forensics — FastAPI Backend
 Handles video upload, frame extraction, and VideoMAE inference.
 """
 
-try:
-    import spaces
-except ImportError:
+import os
+
+# Only initialize Hugging Face spaces if running inside genuine ZeroGPU Space
+IS_HF_SPACE = bool(os.environ.get("SPACE_ID"))
+if IS_HF_SPACE:
+    try:
+        import spaces
+    except ImportError:
+        IS_HF_SPACE = False
+
+if not IS_HF_SPACE:
     class spaces:
         @staticmethod
         def GPU(func=None, **kwargs):
             if func is None:
                 return lambda f: f
-            return func
+            if callable(func):
+                return func
+            return lambda f: f
 
-import os
 import io
 import base64
 import tempfile
@@ -93,11 +102,13 @@ def ensure_model_weights():
         print("[setup] Model weights not found. Downloading fine-tuned VideoMAE (FaceForensics++)...")
         from huggingface_hub import hf_hub_download
 
+        token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
         Path(MODEL_ID).mkdir(parents=True, exist_ok=True)
         hf_hub_download(
             repo_id="Vansh180/VideoMae-ffc23-deepfake-detector",
             filename="model.safetensors",
             local_dir=str(MODEL_ID),
+            token=token,
         )
         print("[setup] Trained model weights downloaded successfully.")
 
@@ -239,8 +250,8 @@ def frames_to_base64(frames: list[Image.Image]) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-@app.get("/health")
-@app.get("/api/health")
+@app.api_route("/health", methods=["GET", "HEAD"], tags=["General"])
+@app.api_route("/api/health", methods=["GET", "HEAD"], tags=["General"])
 async def health_check():
     """Server health and device info."""
     device = "cuda" if torch.cuda.is_available() else "cpu"

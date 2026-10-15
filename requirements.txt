@@ -17,4 +17,3 @@ numpy>=1.24.0
 
 # Gradio Interface (for Hugging Face Spaces free tier)
 gradio>=4.0.0
-spaces>=0.19.0
