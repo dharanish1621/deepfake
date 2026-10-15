@@ -136,8 +136,10 @@ deepfakevideoanalyser/
 
 ### Key Components
 
-- **[`setup.js`](setup.js) / [`setup.bat`](setup.bat) / [`setup.sh`](setup.sh)**: One-line setup engine that verifies Node, creates `.venv`, installs requirements, and downloads model weights.
-- **[`run.js`](run.js) / [`start.bat`](start.bat) / [`start.sh`](start.sh)**: One-line launcher that cleans ports, starts FastAPI (`:8000`) and Vite (`:5173`), prints live access links, and opens your browser.
+- **[`quickstart.py`](quickstart.py)**: Zero-dependency standalone Python bootstrapper that creates `.venv`, installs dependencies, downloads VideoMAE weights, launches the web studio on port 8000, and opens your browser in a single command.
+- **[`setup.bat`](setup.bat) / [`start.bat`](start.bat)**: Windows 1-click launchers (auto-detects Python or Node).
+- **[`setup.sh`](setup.sh) / [`start.sh`](start.sh)**: Unix/macOS 1-click shell scripts.
+- **[`setup.js`](setup.js) / [`run.js`](run.js)**: Node.js orchestrators for dual-engine Vite (`:5173`) + FastAPI (`:8000`) development.
 - **[`server.py`](server.py)**: Initializes FastAPI, mounts `/static` for frontend assets, routes `/api/health` and `/api/analyze`, manages model caching, runs OpenCV frame sampling, and executes PyTorch inference.
 - **[`models/videomae/`](models/videomae/)**: Contains the complete self-contained VideoMAE model weights (`model.safetensors`) and Hugging Face configuration files.
 - **[`frontend/app.js`](frontend/app.js)**: Handles client-side drag-and-drop, validates file size, issues async fetch calls to `/api/analyze`, and renders the interactive forensic report.
@@ -159,27 +161,39 @@ deepfakevideoanalyser/
 
 ---
 
-## ⚡ Quick Start: 1-Line Setup & 1-Line Run
+## ⚡ Quick Start: 1-Command Setup & Run
 
-### 1️⃣ One-Line Installation (Run Once)
-Automatically installs Node packages, sets up isolated Python `.venv`, installs AI dependencies, and verifies fine-tuned model weights:
+### 🚀 Recommended: Zero-Config Standalone Quickstart (Python 3.10+)
+If you just cloned the repository with only Python installed (no Node.js required):
 
 ```bash
-npm run setup
+python quickstart.py
 ```
-> **Windows alternative:** Double-click `setup.bat`  
-> **macOS / Linux alternative:** Run `./setup.sh`
+
+> **Windows 1-Click:** Double-click `start.bat` or `setup.bat`  
+> **macOS / Linux 1-Click:** Run `./start.sh` or `./setup.sh`
+
+This single command automatically:
+1. Checks Python 3.10+ version compatibility
+2. Creates an isolated `.venv` virtual environment
+3. Installs all PyTorch, OpenCV, Transformers, and FastAPI dependencies
+4. Verifies and downloads fine-tuned VideoMAE model weights (~329 MB)
+5. Starts the unified web studio on `http://127.0.0.1:8000/` and opens your browser.
 
 ---
 
-### 2️⃣ One-Line Run (Launch Application)
-Frees occupied ports, launches both the FastAPI AI Backend (`:8000`) and the Vite Forensic Studio (`:5173`), and automatically opens your browser:
+### 📦 Dual-Engine Development Mode (Node.js + Python)
+For full Vite Hot Module Replacement (HMR) development on port `5173`:
 
+#### 1️⃣ One-Line Installation (Run Once)
+```bash
+npm run setup
+```
+
+#### 2️⃣ One-Line Run (Launch Application)
 ```bash
 npm start
 ```
-> **Windows alternative:** Double-click `start.bat`  
-> **macOS / Linux alternative:** Run `./start.sh`
 
 ---
 

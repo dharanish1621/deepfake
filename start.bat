@@ -5,18 +5,22 @@ echo ==========================================================
 echo   Deepfake Video Forensics - Auto Launcher
 echo ==========================================================
 
-:: Check if Node.js is installed
-where node >nul 2>nul
-if %ERRORLEVEL% neq 0 (
-    echo [ERROR] Node.js is not found on your system PATH!
-    echo Please install Node.js from https://nodejs.org/
-    echo.
-    pause
-    exit /b 1
+:: Prefer Python quickstart.py
+where python >nul 2>nul
+if %ERRORLEVEL% equ 0 (
+    python quickstart.py %*
+    exit /b %ERRORLEVEL%
 )
 
-node run.js
-if %ERRORLEVEL% neq 0 (
-    pause
+:: Fallback to Node.js
+where node >nul 2>nul
+if %ERRORLEVEL% equ 0 (
+    node run.js
+    exit /b %ERRORLEVEL%
 )
+
+echo [ERROR] Neither Python (3.10+) nor Node.js was found on your system PATH!
+echo Please install Python 3.10+ from: https://www.python.org/downloads/
+pause
+exit /b 1
 
