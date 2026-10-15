@@ -151,28 +151,36 @@ deepfakevideoanalyser/
 
 ---
 
-## 🚀 Complete Installation & Setup Guide
+## ⚡ Quick Start: 1-Line Setup & 1-Line Run
 
-### ⚡ Instant One-Click Start (Zero-Configuration)
+### 1️⃣ One-Line Installation (Run Once)
+Automatically installs Node packages, sets up isolated Python `.venv`, installs AI dependencies, and verifies fine-tuned model weights:
 
-The project includes an automatic bootstrapping engine in `run.js` that detects your OS, creates the virtual environment (`.venv`), installs all Node and Python dependencies, downloads missing VideoMAE model weights (~345MB) from Hugging Face, and launches both frontend and backend.
-
-#### Windows:
-Double-click `start.bat` in File Explorer, or run in terminal:
-```powershell
-# In PowerShell:
-.\start.bat
-
-# Or using npm:
-npm run dev
-```
-
-#### macOS / Linux:
 ```bash
-chmod +x start.sh
-./start.sh
+npm run setup
 ```
-*(or simply run `npm run dev`)*
+> **Windows alternative:** Double-click `setup.bat`  
+> **macOS / Linux alternative:** Run `./setup.sh`
+
+---
+
+### 2️⃣ One-Line Run (Launch Application)
+Frees occupied ports, launches both the FastAPI AI Backend (`:8000`) and the Vite Forensic Studio (`:5173`), and automatically opens your browser:
+
+```bash
+npm start
+```
+> **Windows alternative:** Double-click `start.bat`  
+> **macOS / Linux alternative:** Run `./start.sh`
+
+---
+
+### 🌐 Live Local Access Links
+Once launched, you can immediately access:
+- **Interactive Forensic Studio (Frontend)**: [http://127.0.0.1:5173/](http://127.0.0.1:5173/)
+- **FastAPI Backend (Direct Root)**: [http://127.0.0.1:8000/](http://127.0.0.1:8000/)
+- **Interactive Swagger Documentation**: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+- **Engine Health & Telemetry**: [http://127.0.0.1:8000/api/health](http://127.0.0.1:8000/api/health)
 
 ---
 

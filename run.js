@@ -68,40 +68,44 @@ function findPython() {
 
 // 3. Ensure Python requirements are installed
 function checkAndInstallRequirements(pythonCmd) {
-  console.log('\x1b[36m[setup]\x1b[0m Checking Python environment...');
-  const checkCode = 'import fastapi, uvicorn, torch, torchvision, transformers, cv2, PIL, numpy, huggingface_hub';
-  let needsInstall = false;
+  const venvDir = path.join(__dirname, '.venv');
+  const winSite = path.join(venvDir, 'Lib', 'site-packages', 'fastapi');
+  const isInstalled = fs.existsSync(winSite);
 
-  try {
-    execSync(`${pythonCmd} -c "${checkCode}"`, { stdio: 'ignore' });
-    console.log('\x1b[32m[setup]\x1b[0m All Python dependencies are satisfied.');
-  } catch {
-    needsInstall = true;
+  if (isInstalled) {
+    return;
   }
 
-  if (needsInstall) {
-    console.log('\x1b[33m[setup]\x1b[0m Installing Python dependencies from requirements.txt...');
-    execSync(`${pythonCmd} -m pip install -r requirements.txt`, {
+  console.log('\x1b[33m[setup]\x1b[0m Installing Python dependencies from requirements.txt...');
+  try {
+    execSync(`"${pythonCmd}" -m pip install -r requirements.txt`, {
       cwd: __dirname,
       stdio: 'inherit',
+      shell: true,
     });
     console.log('\x1b[32m[setup]\x1b[0m Dependencies installed successfully.');
+  } catch (err) {
+    console.warn('\x1b[33m[setup]\x1b[0m Dependency check warning:', err.message);
   }
+}
 
-  // 4. Verify model weights exist
+// 4. Verify model weights exist
+function checkModelWeights(pythonCmd) {
   const modelDir = path.join(__dirname, 'models', 'videomae');
   const modelWeights = path.join(modelDir, 'model.safetensors');
   if (!fs.existsSync(modelWeights)) {
     console.log('\x1b[33m[setup]\x1b[0m Downloading fine-tuned VideoMAE model weights (FaceForensics++)...');
     fs.mkdirSync(modelDir, { recursive: true });
-    const initScript = [
-      "from huggingface_hub import hf_hub_download",
-      "import shutil",
-      "downloaded = hf_hub_download(repo_id='Vansh180/VideoMae-ffc23-deepfake-detector', filename='model.safetensors')",
-      "shutil.copy(downloaded, 'models/videomae/model.safetensors')",
-      "print('Trained model weights installed successfully.')"
+    const pyDownloadScript = [
+      'import os',
+      'from huggingface_hub import hf_hub_download',
+      'token = os.environ.get("HF_TOKEN") or None',
+      'os.environ["HF_HUB_VERBOSITY"] = "error"',
+      `model_dir = r"${modelDir}"`,
+      'hf_hub_download(repo_id="Vansh180/VideoMae-ffc23-deepfake-detector", filename="model.safetensors", local_dir=model_dir, token=token)',
+      'print("Trained model weights installed successfully.")',
     ].join('; ');
-    execSync(`${pythonCmd} -c "${initScript}"`, {
+    execSync(`"${pythonCmd}" -c "${pyDownloadScript}"`, {
       cwd: __dirname,
       stdio: 'inherit',
     });
@@ -145,6 +149,7 @@ function start() {
   checkAndInstallNodeModules();
   const pythonCmd = findPython();
   checkAndInstallRequirements(pythonCmd);
+  checkModelWeights(pythonCmd);
 
   // Clean up previous runs if ports are still held
   freePort(8000);
@@ -174,7 +179,46 @@ function start() {
     shell: true,
   });
 
+  // Helper to open browser
+  const openBrowser = (url) => {
+    try {
+      const cmd = process.platform === 'win32'
+        ? `start "" "${url}"`
+        : process.platform === 'darwin'
+        ? `open "${url}"`
+        : `xdg-open "${url}"`;
+      execSync(cmd, { stdio: 'ignore' });
+    } catch {
+      // ignore
+    }
+  };
+
+  let browserOpened = false;
+  const printBannerAndOpen = () => {
+    if (browserOpened) return;
+    browserOpened = true;
+
+    setTimeout(() => {
+      console.log(`
+\x1b[1m\x1b[36m==========================================================\x1b[0m
+\x1b[1m\x1b[32m  🛡️  Deepfake Video Forensics Studio is Live!\x1b[0m
+\x1b[1m\x1b[36m==========================================================\x1b[0m
+  ➜ \x1b[1mWeb Studio:\x1b[0m     \x1b[36m\x1b[4mhttp://127.0.0.1:5173/\x1b[0m
+  ➜ \x1b[1mAPI Backend:\x1b[0m    \x1b[36m\x1b[4mhttp://127.0.0.1:8000/\x1b[0m
+  ➜ \x1b[1mSwagger Docs:\x1b[0m   \x1b[36m\x1b[4mhttp://127.0.0.1:8000/docs\x1b[0m
+  ➜ \x1b[1mHealth Status:\x1b[0m  \x1b[36m\x1b[4mhttp://127.0.0.1:8000/api/health\x1b[0m
+\x1b[1m\x1b[36m==========================================================\x1b[0m
+  \x1b[2mPress Ctrl+C to stop both servers at any time.\x1b[0m
+`);
+      openBrowser('http://127.0.0.1:5173/');
+    }, 1500);
+  };
+
   frontend.stdout.on('data', (data) => {
+    const str = data.toString();
+    if (str.includes('Local:') || str.includes('5173')) {
+      printBannerAndOpen();
+    }
     process.stdout.write(`\x1b[32m[frontend]\x1b[0m ${data}`);
   });
   frontend.stderr.on('data', (data) => {

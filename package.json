@@ -4,6 +4,7 @@
   "description": "Deepfake Video Forensics — AI-Powered Media Authenticity & Deepfake Video Analyser",
   "type": "module",
   "scripts": {
+    "setup": "node setup.js",
     "dev": "node run.js",
     "start": "node run.js",
     "dev:frontend": "vite",
