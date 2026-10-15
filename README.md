@@ -29,8 +29,8 @@ license: mit
 3. [End-to-End Pipeline Workflow](#-end-to-end-pipeline-workflow)
 4. [Project Structure](#-project-structure)
 5. [Prerequisites & System Requirements](#-prerequisites--system-requirements)
-6. [Complete Installation & Setup Guide](#-complete-installation--setup-guide)
-7. [Running the Application](#-running-the-application)
+6. [Quick Start: 1-Line Setup & 1-Line Run](#-quick-start-1-line-setup--1-line-run)
+7. [Manual Step-by-Step Setup](#-manual-step-by-step-setup-optional)
 8. [Testing & Verification](#-testing--verification)
 9. [REST API Reference & Examples](#-rest-api-reference--examples)
 10. [Model Architecture & Specifications](#-model-architecture--specifications)
@@ -110,7 +110,17 @@ sequenceDiagram
 
 ```text
 deepfakevideoanalyser/
-├── .venv/                      # Python virtual environment (pre-configured)
+├── setup.js                    # 1-Line cross-platform setup orchestrator
+├── setup.bat                   # 1-Click Windows setup script
+├── setup.sh                    # 1-Click macOS/Linux setup script
+├── run.js                      # 1-Line startup orchestrator (ports, servers, auto-open)
+├── start.bat                   # 1-Click Windows launcher
+├── start.sh                    # 1-Click macOS/Linux launcher
+├── server.py                   # FastAPI REST backend & inference runner
+├── app.py                      # Production entrypoint & Hugging Face Spaces handler
+├── package.json                # Project scripts (npm run setup, npm start, etc.)
+├── requirements.txt            # Python AI & computer vision dependencies
+├── Dockerfile                  # Containerized deployment manifest
 ├── frontend/                   # Client-side web interface
 │   ├── index.html              # Semantic HTML5 glassmorphic structure
 │   ├── style.css               # Dark-mode styling, animations, confidence meters
@@ -119,20 +129,18 @@ deepfakevideoanalyser/
 │   └── videomae/               # Trained model package
 │       ├── config.json         # VideoMAE architecture parameters & id2label mapping
 │       ├── preprocessor_config.json # 16-frame spatial preprocessor parameters
-│       ├── model.safetensors   # Fine-tuned model weights (~328 MB)
+│       ├── model.safetensors   # Fine-tuned model weights (~329 MB)
 │       └── README.md           # Detailed model card & training benchmarks
-├── server.py                   # FastAPI REST backend & inference runner
-├── test_model.py               # Standalone model load & sanity verification script
-├── requirements.txt            # Python package dependencies
-├── .gitignore                  # Git ignore rules
 └── README.md                   # End-to-end project documentation
 ```
 
 ### Key Components
 
+- **[`setup.js`](setup.js) / [`setup.bat`](setup.bat) / [`setup.sh`](setup.sh)**: One-line setup engine that verifies Node, creates `.venv`, installs requirements, and downloads model weights.
+- **[`run.js`](run.js) / [`start.bat`](start.bat) / [`start.sh`](start.sh)**: One-line launcher that cleans ports, starts FastAPI (`:8000`) and Vite (`:5173`), prints live access links, and opens your browser.
 - **[`server.py`](server.py)**: Initializes FastAPI, mounts `/static` for frontend assets, routes `/api/health` and `/api/analyze`, manages model caching, runs OpenCV frame sampling, and executes PyTorch inference.
 - **[`models/videomae/`](models/videomae/)**: Contains the complete self-contained VideoMAE model weights (`model.safetensors`) and Hugging Face configuration files.
-- **[`frontend/app.js`](frontend/app.js)**: Handles client-side drag-and-drop, validates file size (up to 250MB), issues async fetch calls to `/api/analyze`, and renders the interactive forensic report.
+- **[`frontend/app.js`](frontend/app.js)**: Handles client-side drag-and-drop, validates file size, issues async fetch calls to `/api/analyze`, and renders the interactive forensic report.
 - **[`test_model.py`](test_model.py)**: Standalone diagnostic utility to verify model load time, weight integrity, and compute device without launching the web server.
 
 ---
