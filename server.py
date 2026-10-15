@@ -144,8 +144,13 @@ def get_model():
 
 
 def extract_frames(video_path: str) -> list[Image.Image]:
-    """Extract NUM_FRAMES evenly spaced frames from a video file with smart downscaling."""
+    """Extract NUM_FRAMES evenly spaced frames from a video file with smart downscaling and low RAM usage."""
     cap = cv2.VideoCapture(video_path)
+    # Prevent OpenCV from allocating massive internal frame buffers (critical for 4K UHD videos)
+    try:
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+    except Exception:
+        pass
 
     try:
         if not cap.isOpened():
@@ -154,16 +159,18 @@ def extract_frames(video_path: str) -> list[Image.Image]:
             )
 
         total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
         frames: list[Image.Image] = []
 
-        # If frame count is valid and positive, sample evenly across timeline
+        # If frame count is valid and positive, sequentially step through timeline.
+        # Using cap.grab() to skip unneeded frames avoids decoding massive uncompressed 4K arrays into memory.
         if total >= NUM_FRAMES:
-            indices = np.linspace(0, total - 1, NUM_FRAMES).astype(int)
-            for index in indices:
-                cap.set(cv2.CAP_PROP_POS_FRAMES, int(index))
-                ok, frame = cap.read()
-                if ok:
+            step = max(1, total // NUM_FRAMES)
+            idx = 0
+            while len(frames) < NUM_FRAMES and idx < total:
+                if idx % step == 0:
+                    ok, frame = cap.read()
+                    if not ok:
+                        break
                     # Resize high-res (e.g. 4K/1080p) frames to max 384px to prevent memory spikes & accelerate inference
                     h, w = frame.shape[:2]
                     if max(h, w) > 384:
@@ -171,6 +178,10 @@ def extract_frames(video_path: str) -> list[Image.Image]:
                         frame = cv2.resize(frame, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
                     frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     frames.append(Image.fromarray(frame))
+                else:
+                    if not cap.grab():
+                        break
+                idx += 1
 
         # Fallback if frame count is unreadable (common with mobile/WhatsApp VFR videos)
         if not frames:
@@ -178,10 +189,10 @@ def extract_frames(video_path: str) -> list[Image.Image]:
             step = max(1, total // NUM_FRAMES) if total > NUM_FRAMES else 1
             frame_idx = 0
             while True:
-                ok, frame = cap.read()
-                if not ok:
-                    break
                 if frame_idx % step == 0:
+                    ok, frame = cap.read()
+                    if not ok:
+                        break
                     h, w = frame.shape[:2]
                     if max(h, w) > 384:
                         scale = 384 / max(h, w)
@@ -189,6 +200,9 @@ def extract_frames(video_path: str) -> list[Image.Image]:
                     frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     frames.append(Image.fromarray(frame))
                     if len(frames) == NUM_FRAMES:
+                        break
+                else:
+                    if not cap.grab():
                         break
                 frame_idx += 1
 
@@ -271,12 +285,21 @@ def _process_video_pipeline(temp_path: str):
     results.sort(key=lambda item: item["score"], reverse=True)
     frame_images = frames_to_base64(frames)
 
+    # Immediately release raw frame objects from memory
+    del frames
+    import gc
+    gc.collect()
+
     return {
         "results": results,
         "frames": frame_images,
         "device": str(device),
-        "frames_sampled": len(frames),
+        "frames_sampled": len(frame_images),
     }
+
+
+# Maximum allowed upload size (100MB) to protect cloud container RAM and prevent Railway proxy timeouts
+MAX_UPLOAD_SIZE = 100 * 1024 * 1024
 
 
 @app.post("/api/analyze")
@@ -296,9 +319,16 @@ async def analyze_video(file: UploadFile = File(...)):
 
     try:
         # Create temporary file using mkstemp to avoid Windows file-locking conflicts (Errno 22)
+        total_bytes = 0
         fd, temp_path = tempfile.mkstemp(suffix=ext)
         with os.fdopen(fd, "wb") as tmp:
             while chunk := await file.read(1024 * 1024):
+                total_bytes += len(chunk)
+                if total_bytes > MAX_UPLOAD_SIZE:
+                    raise HTTPException(
+                        status_code=413,
+                        detail="Video file exceeds 100MB limit. Please compress or trim the video (or use 720p/1080p) before analyzing.",
+                    )
                 tmp.write(chunk)
 
         # Offload video frame extraction & model inference to a worker thread so the main asyncio event loop never blocks
